@@ -2250,6 +2250,23 @@
     "Resource not found": "Resource not found",
     "Action not permitted": "Action not permitted"
   },
+  "propertyScope": {
+    "title": "Choose a property",
+    "description": "Select the property you want to manage.",
+    "loading": "Loading properties…",
+    "loadFailed": "Properties could not load. Refresh the page to try again.",
+    "reload": "Refresh page",
+    "empty": "No properties are available to your staff account.",
+    "search": "Search properties",
+    "searchPlaceholder": "Name or property code",
+    "clearSearch": "Clear search",
+    "results": "Available properties",
+    "matches_one": "{{formattedCount}} property",
+    "matches_other": "{{formattedCount}} properties",
+    "noMatches": "No properties match your search.",
+    "showing": "Showing {{shown}} of {{total}}",
+    "showMore": "Show more properties"
+  },
   "ical": {
     "title": "iCal calendars",
     "description": "Import blocked dates from external calendars and share direct reservations through an export feed.",
@@ -2305,14 +2322,5 @@
     "remove": "Remove calendar",
     "removed": "Calendar removed.",
     "removeWarning": "Remove this calendar? An import calendar’s blocked dates will be deleted and those dates may become bookable. An export calendar’s URL will stop working."
-  },
-  "propertyScope": {
-    "title": "Choose a property",
-    "description": "This page manages one property at a time. Choose a property to continue.",
-    "loading": "Loading properties…",
-    "loadFailed": "Properties could not load. Refresh the page to try again.",
-    "reload": "Refresh page",
-    "empty": "No properties are available to your staff account."
   }
-
 }
