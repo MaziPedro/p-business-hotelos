@@ -96,4 +96,20 @@ describe('PropertyScopeGuard', () => {
   it('FAILS CLOSED on a non-public route with a propertyId but no authenticated user', () => {
     expect(() => run('true', { query: { propertyId: 'propA' } })).toThrow(ForbiddenException);
   });
+
+  it('FAILS CLOSED on an array propertyId in the body even when the query is authorized', () => {
+    expect(() =>
+      run('true', {
+        user: member,
+        query: { propertyId: 'propA' },
+        body: { propertyId: ['propA', 'propB'] },
+      }),
+    ).toThrow(ForbiddenException);
+  });
+
+  it('FAILS CLOSED on an array propertyId in route params', () => {
+    expect(() =>
+      run('true', { user: member, params: { propertyId: ['propA', 'propB'] } }),
+    ).toThrow(ForbiddenException);
+  });
 });
