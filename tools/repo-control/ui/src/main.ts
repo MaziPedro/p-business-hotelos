@@ -306,7 +306,7 @@ function render(): void {
         ${Object.values(s.checks)
           .map(
             (c) =>
-              `<span class="chip ${c.status}" title="${escapeAttr(c.summary)}">${escapeHtml(c.label)} · ${escapeHtml(c.status)}</span>`,
+              `<span class="chip ${escapeAttr(c.status)}" title="${escapeAttr(c.summary)}">${escapeHtml(c.label)} · ${escapeHtml(c.status)}</span>`,
           )
           .join('')}
       </div>
@@ -325,7 +325,7 @@ function render(): void {
                 .map(
                   (c) => `<tr data-cap="${escapeAttr(c.id)}">
                     <td>${escapeHtml(c.name)}</td>
-                    <td><span class="badge ${c.status}">${escapeHtml(labelStatus(c.status))}</span></td>
+                    <td><span class="badge ${escapeAttr(c.status)}">${escapeHtml(labelStatus(c.status))}</span></td>
                     <td>${escapeHtml(truncate(c.exists, 90))}<div class="meta" style="color:var(--muted);font-size:10px">${escapeHtml(truncate(c.missing, 90))}</div></td>
                   </tr>`,
                 )
@@ -344,8 +344,8 @@ function render(): void {
             .map((f) => {
               const ann = state.annotations[f.id];
               return `<div class="finding ${ann ? 'ack' : ''}" data-finding="${escapeAttr(f.id)}">
-                <div class="title"><span class="sev-${f.severity}">${escapeHtml(f.severity)}</span> · ${escapeHtml(f.title)}</div>
-                <div class="meta"><span class="ec-${f.evidenceClass}">${escapeHtml(f.evidenceClass)}</span> · ${escapeHtml(f.category)} · conf ${escapeHtml(f.confidence)}${ann ? ` · ${escapeHtml(ann.status)}` : ''}${f.observedFailure ? ' · observed' : ' · risk'}</div>
+                <div class="title"><span class="sev-${escapeAttr(f.severity)}">${escapeHtml(f.severity)}</span> · ${escapeHtml(f.title)}</div>
+                <div class="meta"><span class="ec-${escapeAttr(f.evidenceClass)}">${escapeHtml(f.evidenceClass)}</span> · ${escapeHtml(f.category)} · conf ${escapeHtml(f.confidence)}${ann ? ` · ${escapeHtml(ann.status)}` : ''}${f.observedFailure ? ' · observed' : ' · risk'}</div>
               </div>`;
             })
             .join('')}
@@ -376,7 +376,7 @@ function render(): void {
             .map(
               (f) => `<div class="finding" data-finding="${escapeAttr(f.id)}">
                 <div class="title">${escapeHtml(f.title)}</div>
-                <div class="meta"><span class="ec-${f.evidenceClass}">${escapeHtml(f.evidenceClass)}</span> · ${escapeHtml(f.confidence)}</div>
+                <div class="meta"><span class="ec-${escapeAttr(f.evidenceClass)}">${escapeHtml(f.evidenceClass)}</span> · ${escapeHtml(f.confidence)}</div>
               </div>`,
             )
             .join('') || '<div class="empty">No bloat candidates in this snapshot.</div>'}
@@ -455,7 +455,7 @@ function renderDrawer(s: Snapshot): string {
     return `<div class="drawer-backdrop" id="backdrop"><div class="drawer">
       <button class="btn" id="closeDrawer">Close</button>
       <h3>${escapeHtml(c.name)}</h3>
-      <p><span class="badge ${c.status}">${escapeHtml(labelStatus(c.status))}</span></p>
+      <p><span class="badge ${escapeAttr(c.status)}">${escapeHtml(labelStatus(c.status))}</span></p>
       <p><strong>Exists:</strong> ${escapeHtml(c.exists)}</p>
       <p><strong>Missing:</strong> ${escapeHtml(c.missing)}</p>
       <p><strong>Verification:</strong> ${escapeHtml(c.verification)}</p>
@@ -474,7 +474,7 @@ function renderDrawer(s: Snapshot): string {
   return `<div class="drawer-backdrop" id="backdrop"><div class="drawer">
     <button class="btn" id="closeDrawer">Close</button>
     <h3>${escapeHtml(f.title)}</h3>
-    <p class="meta"><span class="sev-${f.severity}">${escapeHtml(f.severity)}</span> · <span class="ec-${f.evidenceClass}">${escapeHtml(f.evidenceClass)}</span> · ${escapeHtml(f.confidence)} · ${escapeHtml(f.category)}</p>
+    <p class="meta"><span class="sev-${escapeAttr(f.severity)}">${escapeHtml(f.severity)}</span> · <span class="ec-${escapeAttr(f.evidenceClass)}">${escapeHtml(f.evidenceClass)}</span> · ${escapeHtml(f.confidence)} · ${escapeHtml(f.category)}</p>
     <p>${escapeHtml(f.explanation)}</p>
     <p><strong>Suggested:</strong> ${escapeHtml(f.suggestedAction)}</p>
     <p><strong>Limits:</strong> ${escapeHtml(f.verificationLimits)}</p>
@@ -486,7 +486,7 @@ function renderDrawer(s: Snapshot): string {
             ? `${e.path}${e.line ? `:${e.line}` : ''}`
             : e.command || e.summary;
           const href = e.path ? fileUrl(e.path, e.line) : null;
-          return `<div>${href ? `<a href="${href}" target="_blank" rel="noreferrer">${escapeHtml(label)}</a>` : escapeHtml(label)} — ${escapeHtml(e.summary)}</div>`;
+          return `<div>${href ? `<a href="${escapeAttr(href)}" target="_blank" rel="noreferrer">${escapeHtml(label)}</a>` : escapeHtml(label)} — ${escapeHtml(e.summary)}</div>`;
         })
         .join('')}
     </div>
@@ -628,7 +628,7 @@ function score(f: Snapshot['findings'][number]): number {
 }
 
 function select(id: string, options: string[], value: string): string {
-  return `<select id="${id}">${options
+  return `<select id="${escapeAttr(id)}">${options
     .map(
       (o) =>
         `<option value="${escapeAttr(o)}" ${o === value ? 'selected' : ''}>${escapeHtml(o || id)}</option>`,
