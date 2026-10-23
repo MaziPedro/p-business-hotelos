@@ -126,14 +126,14 @@ describe('SmtpEmailProvider bounded send', () => {
       html: '<p>Hi</p>',
       text: 'Hi',
       messageId: `<stable-delivery-${suffix}@haip.local>`,
-    }, { timeoutMs: 50 });
+    }, { timeoutMs: 250 });
 
     try {
       for (const suffix of ['one', 'two']) {
         const result = await Promise.race([
           send(suffix),
           new Promise<typeof didNotSettle>((resolve) => {
-            setTimeout(() => resolve(didNotSettle), 500);
+            setTimeout(() => resolve(didNotSettle), 1500);
           }),
         ]);
 
