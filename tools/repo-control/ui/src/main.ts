@@ -359,7 +359,7 @@ function render(): void {
           <div class="graphify-preview" id="openGraphify">
             <div>
               <div style="font-weight:700;color:var(--teal);margin-bottom:4px">Modules, imports, and the files inside</div>
-              <div class="muted">${s.graphify.nodeCount ?? '—'} modules · ${s.graphify.edgeCount ?? '—'} cross-imports · ${escapeHtml(s.graphify.status)}</div>
+              <div class="muted">${escapeHtml(String(s.graphify.nodeCount ?? '—'))} modules · ${escapeHtml(String(s.graphify.edgeCount ?? '—'))} cross-imports · ${escapeHtml(s.graphify.status)}</div>
             </div>
           </div>
           <button class="btn" id="openGraphifyBtn">Open map</button>
@@ -415,7 +415,7 @@ function render(): void {
     </div>
 
     <div class="footer">
-      <div>Snapshot ${escapeHtml(s.generatedAt)} · schema v${s.schemaVersion} · collectors: ${s.collectors.map((c) => `${escapeHtml(c.id)}:${escapeHtml(c.status)}`).join(', ')}</div>
+      <div>Snapshot ${escapeHtml(s.generatedAt)} · schema v${escapeHtml(String(s.schemaVersion))} · collectors: ${s.collectors.map((c) => `${escapeHtml(c.id)}:${escapeHtml(c.status)}`).join(', ')}</div>
       <div>No health score. Counts are explicit. Facts ≠ heuristics ≠ inferences.</div>
     </div>
   </div>
