@@ -12,7 +12,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
-import { userCanAccessProperty } from '../auth/property-access';
+import { userCanAccessProperty, userCanManageProperty } from '../auth/property-access';
 import { PropertyService } from './property.service';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
@@ -34,9 +34,8 @@ export class PropertyController {
   @ApiResponse({ status: 200, description: 'List of properties' })
   async getAllProperties(@CurrentUser() user?: AuthUser) {
     const all = await this.propertyService.findAll();
-    // The `properties` row IS the tenant, so the global PropertyScopeGuard can't
-    // bind it (the id param is `:id`, not `propertyId`). Scope the list to the
-    // caller's memberships here; demo (auth off) returns everything.
+    // The properties row IS the tenant, so the global PropertyScopeGuard can't
+    // bind it (the id param is :id, not propertyId). Scope the list to memberships.
     if (!this.authOn() || !user) return all;
     return all.filter((p) => userCanAccessProperty(user, p.id));
   }
@@ -53,7 +52,7 @@ export class PropertyController {
   }
 
   @Post()
-  @Roles('admin')
+  @Roles('admin', 'platform_admin', 'superadmin')
   @ApiOperation({ summary: 'Create new property' })
   @ApiResponse({ status: 201, description: 'Property created' })
   createProperty(@Body() dto: CreatePropertyDto) {
@@ -61,14 +60,19 @@ export class PropertyController {
   }
 
   @Patch(':id')
-  @Roles('admin')
-  @ApiOperation({ summary: 'Update property' })
+  @Roles('admin', 'platform_admin', 'superadmin', 'hotel_owner', 'property_admin', 'general_manager')
+  @ApiOperation({ summary: 'Update property profile, contact details, and branding' })
   @ApiResponse({ status: 200, description: 'Property updated' })
+  @ApiResponse({ status: 403, description: 'Caller cannot manage this property' })
   @ApiResponse({ status: 404, description: 'Property not found' })
   updateProperty(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePropertyDto,
+    @CurrentUser() user?: AuthUser,
   ) {
+    if (this.authOn() && (!user || !userCanManageProperty(user, id))) {
+      throw new ForbiddenException('You cannot manage this property profile');
+    }
     return this.propertyService.update(id, dto);
   }
 }
