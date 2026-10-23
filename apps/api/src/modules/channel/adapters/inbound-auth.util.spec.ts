@@ -37,6 +37,10 @@ describe('inbound-auth.util — verifyBasicAuth', () => {
   it('rejects non-Basic auth schemes', () => {
     expect(verifyBasicAuth('Bearer something', stored)).toBe(false);
   });
+
+  it('rejects oversized Authorization headers', () => {
+    expect(verifyBasicAuth(`Basic ${'A'.repeat(9000)}`, stored)).toBe(false);
+  });
 });
 
 describe('inbound-auth.util — verifyHmacSignature', () => {
@@ -69,6 +73,10 @@ describe('inbound-auth.util — verifyHmacSignature', () => {
 
   it('rejects a non-hex signature', () => {
     expect(verifyHmacSignature('not-hex-!!!', body, stored)).toBe(false);
+  });
+
+  it('rejects an oversized signature header', () => {
+    expect(verifyHmacSignature('a'.repeat(1000), body, stored)).toBe(false);
   });
 });
 

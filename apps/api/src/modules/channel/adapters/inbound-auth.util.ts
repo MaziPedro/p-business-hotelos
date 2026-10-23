@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 /**
  * Per-connection inbound authentication (closes CRITICAL #3 from the security audit).
@@ -29,16 +29,22 @@ export interface InboundBearerAuth {
   bearerToken: string;
 }
 
-/**
- * Constant-time string compare that does NOT leak the length difference.
- * Hashes both sides with sha256 first, then compares the fixed-size digests
- * with `timingSafeEqual`. (A naive `length` check before `timingSafeEqual`
- * would let an attacker probe the secret length via response timing.)
- */
+/** Compare credentials in constant time without treating them as stored password hashes. */
 function constantTimeEqualStr(a: string, b: string): boolean {
-  const ha = createHash('sha256').update(a, 'utf8').digest();
-  const hb = createHash('sha256').update(b, 'utf8').digest();
-  return timingSafeEqual(ha, hb);
+  // Authorization headers are capped at 8 KiB; reject oversized configured values too.
+  const left = Buffer.from(a, 'utf8');
+  const right = Buffer.from(b, 'utf8');
+  const maxBytes = 8192;
+  if (left.length > maxBytes || right.length > maxBytes) return false;
+
+  // Fixed-size buffers plus an encoded length avoid a length-dependent timingSafeEqual call.
+  const leftPadded = Buffer.alloc(maxBytes + 4);
+  const rightPadded = Buffer.alloc(maxBytes + 4);
+  left.copy(leftPadded, 0);
+  right.copy(rightPadded, 0);
+  leftPadded.writeUInt32BE(left.length, maxBytes);
+  rightPadded.writeUInt32BE(right.length, maxBytes);
+  return timingSafeEqual(leftPadded, rightPadded);
 }
 
 /** Parse Authorization credentials with bounded, linear-time handling. */
@@ -100,11 +106,11 @@ export function verifyHmacSignature(
 ): boolean {
   if (!stored?.secret) return false;
   if (typeof signatureHeader !== 'string' || !signatureHeader) return false;
+  if (signatureHeader.length > 80) return false;
   const provided = signatureHeader.trim().replace(/^sha256=/i, '').toLowerCase();
-  if (!/^[0-9a-f]+$/i.test(provided)) return false;
+  if (provided.length !== 64 || !/^[0-9a-f]{64}$/i.test(provided)) return false;
   const expected = createHmac('sha256', stored.secret).update(rawBody).digest('hex');
-  // Hash both sides to a fixed-size digest so a length difference doesn't leak via timing.
-  return constantTimeEqualStr(provided, expected);
+  return timingSafeEqual(Buffer.from(provided, 'hex'), Buffer.from(expected, 'hex'));
 }
 
 /**
