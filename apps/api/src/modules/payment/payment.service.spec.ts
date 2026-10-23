@@ -932,6 +932,39 @@ describe('PaymentService', () => {
         expect(retryKey).toBe(firstKey);
       });
 
+      it('recovers after the gateway succeeds but the refund ledger insert fails', async () => {
+        let insertAttempts = 0;
+        const insertedRefund = { id: 'refund-recovered-after-ledger-error', amount: '-25.00', originalPaymentId: 'pay-001', gatewayTransactionId: 'gateway-refund-25' };
+        const db = {
+          transaction: vi.fn(async (fn: any) => {
+            let selectCall = 0;
+            const tx = {
+              select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn(() => {
+                selectCall++;
+                return selectCall === 1 ? { for: vi.fn().mockResolvedValue([capturedOriginal]) } : { then: (resolve: any) => resolve([]) };
+              }) })) })),
+              insert: vi.fn(() => ({ values: vi.fn(() => ({ returning: vi.fn(async () => {
+                insertAttempts++;
+                if (insertAttempts === 1) throw new Error('simulated ledger write failure');
+                return [insertedRefund];
+              }) })) })),
+            };
+            return fn(tx);
+          }),
+        };
+        const svc = await svcWith(db);
+        await expect(svc.refundPayment('pay-001', 'prop-001', '25.00')).rejects.toThrow('simulated ledger write failure');
+        expect(mockFolioService.recalculateBalance).not.toHaveBeenCalled();
+        expect(mockWebhookService.emit).not.toHaveBeenCalled();
+        const firstKey = mockGateway.refund.mock.calls[0][2].idempotencyKey;
+        const recovered = await svc.refundPayment('pay-001', 'prop-001', '25.00');
+        const retryKey = mockGateway.refund.mock.calls[1][2].idempotencyKey;
+        expect(retryKey).toBe(firstKey);
+        expect(recovered).toMatchObject({ id: insertedRefund.id, amount: insertedRefund.amount });
+        expect(mockFolioService.recalculateBalance).toHaveBeenCalledTimes(1);
+        expect(mockWebhookService.emit).toHaveBeenCalledTimes(1);
+      });
+
       it('uses a unique idempotency key per partial so Stripe does not dedupe different refunds', async () => {
         const db1 = buildRefundTxDb(
           capturedOriginal,
