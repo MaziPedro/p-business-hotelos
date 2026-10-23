@@ -162,7 +162,10 @@ const byRoute = new Map(HELP.map((h) => [h.route, h]));
 
 /** Normalize a pathname to the nearest help key (strip IDs / wildcards). */
 export function normalizeHelpRoute(pathname: string): string {
-  const path = (pathname.split('?')[0] || '/').replace(/\/+$/, '') || '/';
+  // Route strings are request-controlled; bound them and trim trailing slashes without regex.
+  const boundedPathname = pathname.slice(0, 2048);
+  let path = boundedPathname.split('?')[0] || '/';
+  while (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
   if (byRoute.has(path)) return path;
   // Match longest known prefix (e.g. /reservations/calendar → /reservations)
   const prefixes = [...byRoute.keys()]

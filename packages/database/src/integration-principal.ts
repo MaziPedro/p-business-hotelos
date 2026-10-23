@@ -72,11 +72,21 @@ export interface LinkIntegrationPrincipalResult {
 }
 
 export function slugifyIntegrationLabel(label: string): string {
-  const slug = label
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48);
+  // Labels may come from integration metadata; cap input and normalize in one pass.
+  const source = label.slice(0, 256).toLowerCase();
+  let slug = '';
+  let separatorPending = false;
+  for (const char of source) {
+    const code = char.charCodeAt(0);
+    const isAsciiAlphaNumeric = (code >= 97 && code <= 122) || (code >= 48 && code <= 57);
+    if (isAsciiAlphaNumeric) {
+      if (separatorPending && slug.length > 0 && slug.length < 48) slug += '-';
+      separatorPending = false;
+      if (slug.length < 48) slug += char;
+    } else {
+      separatorPending = true;
+    }
+  }
   return slug || 'integration';
 }
 
