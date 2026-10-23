@@ -17,6 +17,30 @@ export interface AvailabilityResult {
 /** Re-exported for existing call sites; canonical definition lives in @telivityhaip/shared. */
 export { stayDates };
 
+/** Validate date-only inputs before date iteration or database access. */
+export function assertValidAvailabilityRequest(
+  propertyId: string,
+  checkIn: string,
+  checkOut: string,
+): void {
+  if (typeof propertyId !== 'string' || propertyId.trim().length === 0) {
+    throw new BadRequestException('propertyId is required');
+  }
+  const isValidDateOnly = (value: string): boolean => {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return false;
+    }
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  };
+  if (!isValidDateOnly(checkIn) || !isValidDateOnly(checkOut)) {
+    throw new BadRequestException('checkIn and checkOut must be valid dates in YYYY-MM-DD format');
+  }
+  if (checkOut <= checkIn) {
+    throw new BadRequestException('checkOut must be later than checkIn');
+  }
+}
+
 /** Require one positive, property-calculated availability row for every night. */
 export function assertFullStayAvailability(
   rows: AvailabilityResult[],
@@ -57,6 +81,7 @@ export class AvailabilityService {
     db?: any,
     options?: { excludeReservationId?: string },
   ): Promise<AvailabilityResult[]> {
+    assertValidAvailabilityRequest(propertyId, checkIn, checkOut);
     const conn = db ?? this.db;
     const requestedDates = stayDates(checkIn, checkOut);
 

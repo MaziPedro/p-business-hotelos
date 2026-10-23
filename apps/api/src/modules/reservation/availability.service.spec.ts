@@ -19,6 +19,20 @@ function availabilityDb(stages: Array<{ rows: any[]; groupBy?: boolean; innerJoi
 }
 
 describe('AvailabilityService', () => {
+
+  it.each([
+    ['', '2026-09-01', '2026-09-02'],
+    ['prop-1', '2026-02-30', '2026-03-02'],
+    ['prop-1', '2026-09-01T12:00:00Z', '2026-09-02'],
+    ['prop-1', '2026-09-02', '2026-09-02'],
+    ['prop-1', '2026-09-03', '2026-09-02'],
+  ])('rejects invalid availability input before querying the database', async (propertyId, checkIn, checkOut) => {
+    const db = { select: vi.fn() };
+    const service = new AvailabilityService(db as any);
+
+    await expect(service.searchAvailability(propertyId, checkIn, checkOut)).rejects.toThrow();
+    expect(db.select).not.toHaveBeenCalled();
+  });
   it('excludes only the explicitly scoped current reservation from the complete window', async () => {
     const db = availabilityDb([
       { rows: [{ id: 'prop-1', overbookingPercentage: 0 }] },
