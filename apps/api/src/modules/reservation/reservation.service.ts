@@ -631,13 +631,21 @@ export class ReservationService {
     // Bug 2: atomic claim — only assigned reservations may check in, and
     // only one concurrent check-in can win. Side effects (folio, payment,
     // room transition, webhook) run ONLY if the claim succeeded.
-    const updated = await this.claimTransition(
-      id,
-      propertyId,
-      ['assigned'],
-      updateData,
-      'checked_in',
-    );
+    // If check-in explicitly changes the assigned room, protect that target
+    // with the same transaction-scoped lock and overlap check as room assignment.
+    const updated = dto.roomId
+      ? await this.db.transaction(async (tx: any) => {
+          await this.lockRoomForStay(
+            tx, roomId, reservation.propertyId, id, reservation.roomTypeId,
+            reservation.arrivalDate, reservation.departureDate,
+          );
+          return this.claimTransition(
+            id, propertyId, ['assigned'], updateData, 'checked_in', tx,
+          );
+        })
+      : await this.claimTransition(
+          id, propertyId, ['assigned'], updateData, 'checked_in',
+        );
 
     // Auto-create guest folio on check-in
     const folio = await this.folioService.createAutoFolio(updated);
