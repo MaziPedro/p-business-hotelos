@@ -1181,6 +1181,7 @@ describe('FolioService', () => {
             }),
           }),
         })),
+        update: vi.fn(),
       };
       const module: TestingModule = await Test.createTestingModule({
         providers: [
@@ -1193,6 +1194,10 @@ describe('FolioService', () => {
       const svc = module.get<FolioService>(FolioService);
 
       await expect(svc.settle('folio-001', 'prop-001')).rejects.toThrow(BadRequestException);
+      expect(db.update).not.toHaveBeenCalled();
+      expect(mockWebhookService.emit).not.toHaveBeenCalledWith(
+        'folio.settled', expect.anything(), expect.anything(), expect.anything(), expect.anything(),
+      );
     });
   });
 
