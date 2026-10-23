@@ -56,11 +56,18 @@ export class PropertyScopeGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const raw: unknown =
-      request.query?.propertyId ?? request.body?.propertyId ?? request.params?.propertyId;
+    // Validate every supplied location independently. Controllers/services may
+    // consume the body while a guard that checks only the query would otherwise
+    // authorize a different property than the operation actually targets.
+    const propertyIds: unknown[] = [
+      request.query?.propertyId,
+      request.body?.propertyId,
+      request.params?.propertyId,
+    ].filter((value) => value !== undefined && value !== null);
+
     // Routes without a propertyId aren't property-scoped (e.g. global admin lists,
     // /properties). Nothing to enforce here.
-    if (raw === undefined || raw === null) {
+    if (propertyIds.length === 0) {
       return true;
     }
 
@@ -68,13 +75,15 @@ export class PropertyScopeGuard implements CanActivate {
     if (!user) {
       throw new ForbiddenException('No authenticated user');
     }
-    // A duplicated query param (`?propertyId=A&propertyId=B`) parses to an array;
-    // reject anything non-scalar rather than skipping the membership check.
-    if (typeof raw !== 'string') {
-      throw new ForbiddenException('Invalid propertyId');
-    }
-    if (!userCanAccessProperty(user, raw)) {
-      throw new ForbiddenException('You do not have access to this property');
+
+    for (const propertyId of propertyIds) {
+      // A duplicated query param parses to an array; reject every non-scalar.
+      if (typeof propertyId !== 'string') {
+        throw new ForbiddenException('Invalid propertyId');
+      }
+      if (!userCanAccessProperty(user, propertyId)) {
+        throw new ForbiddenException('You do not have access to this property');
+      }
     }
 
     return true;

@@ -42,6 +42,36 @@ describe('PropertyScopeGuard', () => {
     );
   });
 
+  it('rejects conflicting query and body propertyIds instead of authorizing only the query', () => {
+    expect(() =>
+      run('true', {
+        user: member,
+        query: { propertyId: 'propA' },
+        body: { propertyId: 'propB' },
+      }),
+    ).toThrow(ForbiddenException);
+  });
+
+  it('rejects a foreign propertyId in route params even when the query is authorized', () => {
+    expect(() =>
+      run('true', {
+        user: member,
+        query: { propertyId: 'propA' },
+        params: { propertyId: 'propB' },
+      }),
+    ).toThrow(ForbiddenException);
+  });
+
+  it('allows matching propertyIds supplied in query and body', () => {
+    expect(
+      run('true', {
+        user: member,
+        query: { propertyId: 'propA' },
+        body: { propertyId: 'propA' },
+      }),
+    ).toBe(true);
+  });
+
   it('lets platform admins cross properties', () => {
     expect(run('true', { user: admin, query: { propertyId: 'propZ' } })).toBe(true);
   });
