@@ -907,6 +907,29 @@ describe('PaymentService', () => {
         ).rejects.toThrow(BadRequestException);
       });
 
+      it('replays an implicit refund from the ledger using the persisted gateway idempotency key', async () => {
+        const prior = [{
+          id: 'refund-persisted-key',
+          amount: '-25.00',
+          originalPaymentId: 'pay-001',
+          idempotencyKey: 'ref_pay-001_25.00',
+        }];
+        const db = buildRefundTxDb(
+          partialOriginal,
+          prior,
+          prior,
+          { id: 'unreachable' } as any,
+        );
+        const svc = await svcWith(db);
+
+        const result = await svc.refundPayment('pay-001', 'prop-001', '25.00');
+
+        expect(result).toMatchObject({ id: 'refund-persisted-key', amount: '-25.00' });
+        expect(mockGateway.refund).not.toHaveBeenCalled();
+        expect(mockFolioService.recalculateBalance).not.toHaveBeenCalled();
+        expect(mockWebhookService.emit).not.toHaveBeenCalled();
+      });
+
       it('keeps the implicit gateway key stable when a same-amount refund is retried after another refund', async () => {
         const db1 = buildRefundTxDb(
           capturedOriginal,

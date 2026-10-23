@@ -574,16 +574,40 @@ export class PaymentService {
             eq(payments.propertyId, propertyId),
           ),
         );
-      // Without a caller-supplied key, a second refund for an amount already
-      // present in the ledger is ambiguous: it may be a retry of a successful
-      // partial refund. Refuse it before contacting the gateway; callers that
-      // intentionally need two same-amount partial refunds must provide distinct
-      // idempotency keys. Concurrent retries are additionally protected by the
-      // deterministic gateway key and the post-gateway ledger reconciliation.
+      const implicitIdempotencyKey = `ref_${id}_${refundAmountInTx.toFixed(2)}`;
+      // A prior refund carrying this deterministic key is a replay, including
+      // after the gateway succeeded and the caller lost the original response.
+      // Legacy rows without a persisted key remain ambiguous and are rejected
+      // below rather than risking a second same-amount refund.
+      if (!options.idempotencyKey) {
+        const implicitReplay = (existingRefunds ?? []).find(
+          (row: typeof payments.$inferSelect) => row.idempotencyKey === implicitIdempotencyKey,
+        );
+        if (implicitReplay) {
+          if (
+            implicitReplay.originalPaymentId !== id
+            || !new Decimal(implicitReplay.amount).abs().eq(refundAmountInTx)
+          ) {
+            throw new ConflictException(
+              'Refund idempotency key was already used for different refund data',
+            );
+          }
+          return {
+            original,
+            totalAfterDec: originalAmountDec,
+            refundAmountDec: refundAmountInTx,
+            replay: implicitReplay,
+          };
+        }
+      }
+
+      // Without a persisted matching key, a same-amount child may be a legacy
+      // retry or an intentional duplicate. Require a distinct explicit key.
       if (
         !options.idempotencyKey
         && (existingRefunds ?? []).some((row: typeof payments.$inferSelect) =>
-          new Decimal(row.amount).abs().eq(refundAmountInTx))
+          new Decimal(row.amount).abs().eq(refundAmountInTx)
+        )
       ) {
         throw new ConflictException(
           'A matching refund already exists; provide an idempotency key to distinguish a new partial refund from a retry',
@@ -663,18 +687,18 @@ export class PaymentService {
         );
       const alreadyRefundedDec = sumRefundChildren(existingRefunds ?? []);
 
-      if (options.idempotencyKey) {
+      {
         const replayRows = await tx
           .select()
           .from(payments)
           .where(and(
             eq(payments.propertyId, propertyId),
-            eq(payments.idempotencyKey, options.idempotencyKey),
+            eq(payments.idempotencyKey, idempotencyKey),
           ));
         const replayAfterGateway = (replayRows ?? []).find(
           (row: typeof payments.$inferSelect) =>
           row.propertyId === propertyId
-          && row.idempotencyKey === options.idempotencyKey,
+          && row.idempotencyKey === idempotencyKey,
         );
         if (replayAfterGateway) {
           if (
@@ -723,7 +747,7 @@ export class PaymentService {
           folioId: locked.folioId,
           propertyId,
           bookingRequestId: locked.bookingRequestId,
-          idempotencyKey: options.idempotencyKey ?? null,
+          idempotencyKey,
           method: locked.method,
           amount: ledgerRefundDec.negated().toFixed(2),
           currencyCode: locked.currencyCode,
