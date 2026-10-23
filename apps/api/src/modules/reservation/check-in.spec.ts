@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ReservationService } from './reservation.service';
 import { AvailabilityService } from './availability.service';
 import { FolioService } from '../folio/folio.service';
@@ -287,6 +287,45 @@ describe('ReservationService — checkIn', () => {
     await expect(svc.checkIn('res-001', 'prop-001', { roomId: 'room-002' })).rejects.toThrow(
       BadRequestException,
     );
+  });
+
+  it('should reject explicit-room check-in when the target room has an overlapping reservation', async () => {
+    let dbSelectCount = 0;
+    let txSelectCount = 0;
+    const resultQuery = (value: any) => {
+      const q: any = {
+        from: () => q,
+        where: () => q,
+        for: () => q,
+        limit: () => q,
+        then: (resolve: (value: any[]) => unknown) => Promise.resolve(resolve(value == null ? [] : [value])),
+      };
+      return q;
+    };
+    const tx = {
+      select: vi.fn().mockImplementation(() => {
+        txSelectCount++;
+        return resultQuery(txSelectCount === 1 ? mockRoom : { id: 'res-other' });
+      }),
+      update: vi.fn(),
+    };
+    const db = {
+      select: vi.fn().mockImplementation(() => {
+        dbSelectCount++;
+        const values = [mockReservation, mockGuest, { ...mockRoom, id: 'room-002' }, mockProperty];
+        return resultQuery(values[dbSelectCount - 1]);
+      }),
+      transaction: vi.fn(async (callback: (executor: any) => Promise<unknown>) => callback(tx)),
+      update: vi.fn(),
+    };
+    const svc = await createService(db);
+
+    await expect(svc.checkIn('res-001', 'prop-001', { roomId: 'room-002' })).rejects.toBeInstanceOf(ConflictException);
+    expect(db.transaction).toHaveBeenCalledOnce();
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(mockFolioService.createAutoFolio).not.toHaveBeenCalled();
+    expect(mockRoomStatusService.markOccupied).not.toHaveBeenCalled();
+    expect(mockWebhookService.emit).not.toHaveBeenCalled();
   });
 
   it('should throw when no room assigned and no roomId provided', async () => {
