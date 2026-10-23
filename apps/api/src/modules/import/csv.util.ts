@@ -115,10 +115,13 @@ function parseRows(text: string): string[][] {
     if (ch === '"') {
       inQuotes = true;
     } else if (ch === ',') {
+      if (row.length >= 200) throw new Error('CSV input exceeds the 200-column limit');
       row.push(field);
       field = '';
     } else if (ch === '\n') {
+      if (row.length >= 200) throw new Error('CSV input exceeds the 200-column limit');
       row.push(field);
+      if (rows.length >= 10_001) throw new Error('CSV input exceeds the 10,000-row limit');
       rows.push(row);
       row = [];
       field = '';
@@ -130,7 +133,9 @@ function parseRows(text: string): string[][] {
   }
   // Flush the final field/row if the file doesn't end with a newline.
   if (field.length > 0 || row.length > 0) {
+    if (row.length >= 200) throw new Error('CSV input exceeds the 200-column limit');
     row.push(field);
+    if (rows.length >= 10_001) throw new Error('CSV input exceeds the 10,000-row limit');
     rows.push(row);
   }
   return rows;

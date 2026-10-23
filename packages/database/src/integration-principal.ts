@@ -80,7 +80,7 @@ export function slugifyIntegrationLabel(label: string): string {
     const code = char.charCodeAt(0);
     const isAsciiAlphaNumeric = (code >= 97 && code <= 122) || (code >= 48 && code <= 57);
     if (isAsciiAlphaNumeric) {
-      if (separatorPending && slug.length > 0 && slug.length < 48) slug += '-';
+      if (separatorPending && slug.length > 0 && slug.length < 47) slug += '-';
       separatorPending = false;
       if (slug.length < 48) slug += char;
     } else {
