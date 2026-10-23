@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { inspect } from 'node:util';
 import { Test } from '@nestjs/testing';
 import { ReservationService } from './reservation.service';
 import { DRIZZLE } from '../../database/database.module';
@@ -142,4 +143,30 @@ describe('ReservationService — cross-tenant FK ownership (audit #4)', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(db.transaction).not.toHaveBeenCalled();
   });
+
+  it('findById() scopes the lookup by both reservation id and property id', async () => {
+    let whereCondition: unknown;
+    const db: any = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          leftJoin: vi.fn().mockReturnThis(),
+          where: vi.fn().mockImplementation((condition: unknown) => {
+            whereCondition = condition;
+            return Promise.resolve([]);
+          }),
+        }),
+      }),
+    };
+    const svc = await mkService(db);
+
+    // An id that exists in another property must look absent in this tenant.
+    await expect(svc.findById('foreign-reservation', A)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(whereCondition).toBeDefined();
+    const predicate = inspect(whereCondition, { depth: 10 });
+    expect(predicate).toContain('property_id');
+    expect(predicate).toContain('id');
+  });
+
 });
