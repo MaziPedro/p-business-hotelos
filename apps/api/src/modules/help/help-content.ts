@@ -162,6 +162,8 @@ const byRoute = new Map(HELP.map((h) => [h.route, h]));
 
 /** Normalize a pathname to the nearest help key (strip IDs / wildcards). */
 export function normalizeHelpRoute(pathname: string): string {
+  // Request parameters can be arrays/objects at runtime despite the static type. Fail closed.
+  if (typeof pathname !== 'string') return '/';
   // Route strings are request-controlled; bound them and trim trailing slashes without regex.
   const boundedPathname = pathname.slice(0, 2048);
   let path = boundedPathname.split('?')[0] || '/';
