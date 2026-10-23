@@ -907,6 +907,31 @@ describe('PaymentService', () => {
         ).rejects.toThrow(BadRequestException);
       });
 
+      it('keeps the implicit gateway key stable when a same-amount refund is retried after another refund', async () => {
+        const db1 = buildRefundTxDb(
+          capturedOriginal,
+          [],
+          [],
+          { id: 'refund-first-attempt', amount: '-50.00', originalPaymentId: 'pay-001' },
+        );
+        const svc1 = await svcWith(db1);
+        await svc1.refundPayment('pay-001', 'prop-001', '50.00');
+        const firstKey = mockGateway.refund.mock.calls[mockGateway.refund.mock.calls.length - 1][2].idempotencyKey;
+
+        const prior = [{ amount: '-30.00', originalPaymentId: 'pay-001' }];
+        const db2 = buildRefundTxDb(
+          partialOriginal,
+          prior,
+          prior,
+          { id: 'refund-recovered', amount: '-50.00', originalPaymentId: 'pay-001' },
+        );
+        const svc2 = await svcWith(db2);
+        await svc2.refundPayment('pay-001', 'prop-001', '50.00');
+        const retryKey = mockGateway.refund.mock.calls[mockGateway.refund.mock.calls.length - 1][2].idempotencyKey;
+
+        expect(retryKey).toBe(firstKey);
+      });
+
       it('uses a unique idempotency key per partial so Stripe does not dedupe different refunds', async () => {
         const db1 = buildRefundTxDb(
           capturedOriginal,

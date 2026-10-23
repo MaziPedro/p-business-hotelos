@@ -620,8 +620,12 @@ export class PaymentService {
     } = prepared;
     if (replay) return this.safePaymentResponse(replay);
 
+    // Keep the implicit key stable for retries of the same refund amount even
+    // if another refund is recorded before recovery. Same-amount intentional
+    // refunds require explicit, distinct keys (guarded above), so amount is a
+    // safe fallback identity for this payment.
     const idempotencyKey = options.idempotencyKey
-      ?? `ref_${id}_${totalAfterDec.toFixed(2)}`;
+      ?? `ref_${id}_${refundDec.toFixed(2)}`;
     const lifecycleOptions = await this.buildLifecycleGatewayOptions(original);
     const result = await this.gateway.refund(
       original.gatewayTransactionId,
