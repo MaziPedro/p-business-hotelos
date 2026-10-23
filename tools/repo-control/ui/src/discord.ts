@@ -11,7 +11,8 @@ function detectDiscordFrame(): boolean {
   const forceView = params.get('viewOnly') === '1' || params.get('discord') === '1';
   return (
     forceView ||
-    location.hostname.endsWith('discordsays.com') ||
+    (location.hostname.toLowerCase().replace(/\.$/, '') === 'discordsays.com' ||
+      location.hostname.toLowerCase().replace(/\.$/, '').endsWith('.discordsays.com')) ||
     params.has('frame_id') ||
     params.has('instance_id') ||
     params.has('platform') ||

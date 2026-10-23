@@ -133,10 +133,20 @@ async function resolveAccess(
   const referer = String(req.headers.referer || req.headers.referrer || '');
   const originHdr = String(req.headers.origin || '');
   const fwdHost = String(req.headers['x-forwarded-host'] || req.headers['x-original-host'] || '');
+  const hasDiscordHost = (raw: string, allowBareHost = false): boolean => {
+    if (!raw || raw.length > 4096) return false;
+    try {
+      const parsed = new URL(allowBareHost ? 'http://' + raw : raw);
+      const host = parsed.hostname.toLowerCase().replace(/\.$/, '');
+      return host === 'discordsays.com' || host.endsWith('.discordsays.com');
+    } catch {
+      return false;
+    }
+  };
   const fromDiscordProxy =
-    referer.includes('discordsays.com') ||
-    originHdr.includes('discordsays.com') ||
-    fwdHost.includes('discordsays.com') ||
+    hasDiscordHost(referer) ||
+    hasDiscordHost(originHdr) ||
+    hasDiscordHost(fwdHost, true) ||
     url.searchParams.get('discord') === '1' ||
     url.pathname.startsWith('/discord') ||
     Boolean(req.headers['x-discord-activity']);
