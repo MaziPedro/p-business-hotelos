@@ -41,6 +41,24 @@ function constantTimeEqualStr(a: string, b: string): boolean {
   return timingSafeEqual(ha, hb);
 }
 
+/** Parse Authorization credentials with bounded, linear-time handling. */
+function authorizationCredential(header: string, scheme: string): string | undefined {
+  if (header.length > 8192) return undefined;
+  const value = header.trim();
+  if (value.length <= scheme.length || value.slice(0, scheme.length).toLowerCase() !== scheme.toLowerCase()) return undefined;
+  const separator = value.charCodeAt(scheme.length);
+  if (separator !== 32 && (separator < 9 || separator > 13)) return undefined;
+  let index = scheme.length;
+  while (index < value.length) {
+    const code = value.charCodeAt(index);
+    if (code === 32 || (code >= 9 && code <= 13)) index++;
+    else break;
+  }
+  const credential = value.slice(index).trim();
+  return credential || undefined;
+}
+
+
 /**
  * Verify a `Authorization: Basic <base64(user:pass)>` header against the stored
  * Basic-Auth credentials on a channel connection. Returns true iff both match in
@@ -52,11 +70,11 @@ export function verifyBasicAuth(
 ): boolean {
   if (!stored?.username || !stored?.password) return false;
   if (typeof authHeader !== 'string' || !authHeader) return false;
-  const m = /^Basic\s+(.+)$/i.exec(authHeader.trim());
-  if (!m) return false;
+  const credential = authorizationCredential(authHeader, 'Basic');
+  if (!credential) return false;
   let decoded: string;
   try {
-    decoded = Buffer.from(m[1]!, 'base64').toString('utf8');
+    decoded = Buffer.from(credential, 'base64').toString('utf8');
   } catch {
     return false;
   }
@@ -99,9 +117,9 @@ export function verifyBearerAuth(
 ): boolean {
   if (!stored?.bearerToken) return false;
   if (typeof authHeader !== 'string' || !authHeader) return false;
-  const m = /^Bearer\s+(.+)$/i.exec(authHeader.trim());
-  if (!m) return false;
-  return constantTimeEqualStr(m[1]!.trim(), stored.bearerToken);
+  const credential = authorizationCredential(authHeader, 'Bearer');
+  if (!credential) return false;
+  return constantTimeEqualStr(credential, stored.bearerToken);
 }
 
 /** Extract `inboundAuth` from a channel connection's `config` jsonb safely. */

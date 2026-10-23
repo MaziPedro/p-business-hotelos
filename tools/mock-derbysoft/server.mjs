@@ -78,9 +78,20 @@ function verifyBasic(req) {
 
 function verifyBearer(req) {
   const auth = req.headers.authorization ?? '';
-  const m = /^Bearer\s+(.+)$/i.exec(auth);
-  if (!m) return false;
-  return store.tokens.has(m[1].trim());
+  if (auth.length > 8192) return false;
+  const value = auth.trim();
+  const scheme = 'Bearer';
+  if (value.length <= scheme.length || value.slice(0, scheme.length).toLowerCase() !== scheme.toLowerCase()) return false;
+  const separator = value.charCodeAt(scheme.length);
+  if (separator !== 32 && (separator < 9 || separator > 13)) return false;
+  let index = scheme.length;
+  while (index < value.length) {
+    const code = value.charCodeAt(index);
+    if (code === 32 || (code >= 9 && code <= 13)) index++;
+    else break;
+  }
+  const credential = value.slice(index).trim();
+  return credential.length > 0 && store.tokens.has(credential);
 }
 
 function echoHeader(body) {
