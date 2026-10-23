@@ -177,3 +177,22 @@ describe('RoomService — updateRoom roomTypeId move', () => {
     expect(db.update).toHaveBeenCalled();
   });
 });
+
+
+describe('RoomService — tenant-scoped room lookup', () => {
+  it('treats a room owned by another property as not found and never updates it', async () => {
+    const db: any = {
+      select: selectQueue([[]]),
+      update: vi.fn(),
+    };
+    const mod = await Test.createTestingModule({
+      providers: [RoomService, { provide: DRIZZLE, useValue: db }],
+    }).compile();
+    const svc = mod.get(RoomService);
+
+    await expect(svc.updateRoom(ROOM_ID, A, { floor: '99' } as any)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(db.update).not.toHaveBeenCalled();
+  });
+});
