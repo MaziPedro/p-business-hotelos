@@ -40,12 +40,15 @@ describe('ReservationService.moveRoom', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    db = {
-      select: vi.fn().mockReturnValue({
+    const tx = {
+      select: vi.fn().mockImplementation(() => ({
         from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([targetRoom]),
+          where: vi.fn().mockReturnValue({
+            for: vi.fn().mockResolvedValue([targetRoom]),
+            limit: vi.fn().mockResolvedValue([]),
+          }),
         }),
-      }),
+      })),
       update: vi.fn().mockReturnValue({
         set: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
@@ -55,6 +58,9 @@ describe('ReservationService.moveRoom', () => {
           }),
         }),
       }),
+    };
+    db = {
+      transaction: vi.fn(async (callback: (tx: any) => unknown) => callback(tx)),
     };
 
     const module: TestingModule = await Test.createTestingModule({
