@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { inspect } from 'node:util';
 import { Test } from '@nestjs/testing';
 import { FolioService } from './folio.service';
 import { DRIZZLE } from '../../database/database.module';
@@ -62,4 +63,28 @@ describe('FolioService — cross-tenant FK ownership', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(db.insert).not.toHaveBeenCalled();
   });
+
+  it('scopes folio detail reads by folio id and property id', async () => {
+    let whereCondition: unknown;
+    const db: any = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockImplementation((condition: unknown) => {
+            whereCondition = condition;
+            return Promise.resolve([]);
+          }),
+        }),
+      }),
+    };
+    const svc = await mkSvc(db);
+
+    await expect(svc.findById('foreign-folio', A)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(whereCondition).toBeDefined();
+    const predicate = inspect(whereCondition, { depth: 10 });
+    expect(predicate).toContain('property_id');
+    expect(predicate).toContain('id');
+  });
+
 });
