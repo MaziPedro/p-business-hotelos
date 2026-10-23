@@ -574,6 +574,22 @@ export class PaymentService {
             eq(payments.propertyId, propertyId),
           ),
         );
+      // Without a caller-supplied key, a second refund for an amount already
+      // present in the ledger is ambiguous: it may be a retry of a successful
+      // partial refund. Refuse it before contacting the gateway; callers that
+      // intentionally need two same-amount partial refunds must provide distinct
+      // idempotency keys. Concurrent retries are additionally protected by the
+      // deterministic gateway key and the post-gateway ledger reconciliation.
+      if (
+        !options.idempotencyKey
+        && (existingRefunds ?? []).some((row: typeof payments.$inferSelect) =>
+          new Decimal(row.amount).abs().eq(refundAmountInTx))
+      ) {
+        throw new ConflictException(
+          'A matching refund already exists; provide an idempotency key to distinguish a new partial refund from a retry',
+        );
+      }
+
       const alreadyRefundedDec = sumRefundChildren(existingRefunds ?? []);
       const remainingDec = originalAmountDec.minus(alreadyRefundedDec);
 

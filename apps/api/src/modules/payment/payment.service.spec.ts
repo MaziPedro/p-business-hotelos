@@ -877,6 +877,22 @@ describe('PaymentService', () => {
         expect(db.transaction).toHaveBeenCalled();
       });
 
+      it('blocks an ambiguous retry of an existing partial refund when no idempotency key is supplied', async () => {
+        const prior = [{ amount: '-50.00', originalPaymentId: 'pay-001' }];
+        const db = buildRefundTxDb(
+          partialOriginal,
+          prior,
+          prior,
+          { id: 'unreachable' } as any,
+        );
+        const svc = await svcWith(db);
+
+        await expect(
+          svc.refundPayment('pay-001', 'prop-001', '50.00'),
+        ).rejects.toThrow(/matching refund already exists/i);
+        expect(mockGateway.refund).not.toHaveBeenCalled();
+      });
+
       it('rejects a refund that would exceed remaining refundable amount', async () => {
         const prior = [{ amount: '-50.00', originalPaymentId: 'pay-001' }];
         const db = buildRefundTxDb(
