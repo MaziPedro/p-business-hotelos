@@ -28,12 +28,12 @@ function mkDbSeq(rows: any[][]) {
   };
 }
 
-async function mkSvc(db: any) {
+async function mkSvc(db: any, webhook = { emit: vi.fn() }) {
   const mod = await Test.createTestingModule({
     providers: [
       FolioService,
       { provide: DRIZZLE, useValue: db },
-      { provide: WebhookService, useValue: { emit: vi.fn() } },
+      { provide: WebhookService, useValue: webhook },
       { provide: TaxService, useValue: {} },
     ],
   }).compile();
@@ -135,6 +135,34 @@ describe('FolioService — cross-tenant FK ownership', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(db.update).not.toHaveBeenCalled();
     expect(db.insert).not.toHaveBeenCalled();
+  });
+
+
+  it('does not reverse a charge outside the requested property or emit a webhook', async () => {
+    let whereCondition: unknown;
+    const webhook = { emit: vi.fn() };
+    const db: any = {
+      transaction: vi.fn(async (work: (tx: any) => Promise<unknown>) => work(db)),
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockImplementation((condition: unknown) => {
+            whereCondition = condition;
+            return Promise.resolve([]); // charge not owned by this property/folio
+          }),
+        }),
+      }),
+      insert: vi.fn(),
+    };
+    const svc = await mkSvc(db, webhook);
+
+    await expect(svc.reverseCharge('folio-a', 'foreign-charge', A))
+      .rejects.toBeInstanceOf(NotFoundException);
+    const predicate = inspect(whereCondition, { depth: 10 });
+    expect(predicate).toContain('property_id');
+    expect(predicate).toContain('folio_id');
+    expect(predicate).toContain('id');
+    expect(db.insert).not.toHaveBeenCalled();
+    expect(webhook.emit).not.toHaveBeenCalled();
   });
 
 });
