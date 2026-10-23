@@ -269,6 +269,7 @@ jobs:
             VITE_KEYCLOAK_REALM=haip
             VITE_KEYCLOAK_CLIENT_ID=haip-dashboard
             VITE_HAIP_BOOKING_REQUESTS=false
+          # This fork must publish to its own GHCR namespace, never the upstream project's.
           tags: |
-            ghcr.io/telivityai/haip-api:${{ needs.release.outputs.next }}
-            ghcr.io/telivityai/haip-api:latest
+            ghcr.io/mazipedro/p-business-hotelos-api:${{ needs.release.outputs.next }}
+            ghcr.io/mazipedro/p-business-hotelos-api:latest
