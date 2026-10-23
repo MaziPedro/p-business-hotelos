@@ -24,6 +24,9 @@ export class ReservationImportService {
   ) {}
 
   async importReservations(propertyId: string, dto: ImportReservationsDto) {
+    if (!Array.isArray(dto.rows) || dto.rows.length > 10_000) {
+      throw new BadRequestException('Reservation imports are limited to 10,000 rows');
+    }
     const results: Array<{
       index: number;
       success: boolean;

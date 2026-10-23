@@ -187,6 +187,9 @@ export class ImportService {
     const guestEmailCache = new Map<string, string>();
 
     const rawRows = input.csv ? parseCsv(input.csv) : input.rows ?? [];
+    if (rawRows.length > 10_000) {
+      throw new BadRequestException('Import batches are limited to 10,000 rows');
+    }
     if (rawRows.length === 0) {
       throw new BadRequestException('No rows to import (provide `csv` text or `rows`)');
     }

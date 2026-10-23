@@ -470,8 +470,10 @@ const server = http.createServer(async (req, res) => {
 
     sendJson(res, 404, { error: 'not_found', path: pathname });
   } catch (err) {
+    // Keep diagnostic detail in server logs; never expose stack/message internals to clients.
     console.error(err);
-    sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) });
+    if (!res.headersSent) sendJson(res, 500, { error: 'internal_server_error' });
+    else res.destroy();
   }
 });
 

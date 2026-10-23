@@ -71,10 +71,14 @@ export function suggestCanonicalField(
 }
 
 export function parseCsv(text: string): Record<string, string>[] {
+  // Bound CPU and memory use for untrusted migration uploads.
+  if (text.length > 5_000_000) throw new Error('CSV input exceeds the 5 MB character limit');
   const rows = parseRows(text);
   if (rows.length === 0) return [];
   const header = rows[0]!.map((h) => h.trim());
   const out: Record<string, string>[] = [];
+  if (header.length > 200) throw new Error('CSV input exceeds the 200-column limit');
+  if (rows.length > 10_001) throw new Error('CSV input exceeds the 10,000-row limit');
   for (let i = 1; i < rows.length; i++) {
     const cells = rows[i]!;
     // Skip fully-empty lines.
