@@ -345,7 +345,7 @@ function render(): void {
               const ann = state.annotations[f.id];
               return `<div class="finding ${ann ? 'ack' : ''}" data-finding="${escapeAttr(f.id)}">
                 <div class="title"><span class="sev-${f.severity}">${escapeHtml(f.severity)}</span> · ${escapeHtml(f.title)}</div>
-                <div class="meta"><span class="ec-${f.evidenceClass}">${escapeHtml(f.evidenceClass)}</span> · ${escapeHtml(f.category)} · conf ${escapeHtml(f.confidence)}${ann ? ` · ${ann.status}` : ''}${f.observedFailure ? ' · observed' : ' · risk'}</div>
+                <div class="meta"><span class="ec-${f.evidenceClass}">${escapeHtml(f.evidenceClass)}</span> · ${escapeHtml(f.category)} · conf ${escapeHtml(f.confidence)}${ann ? ` · ${escapeHtml(ann.status)}` : ''}${f.observedFailure ? ' · observed' : ' · risk'}</div>
               </div>`;
             })
             .join('')}
@@ -415,7 +415,7 @@ function render(): void {
     </div>
 
     <div class="footer">
-      <div>Snapshot ${escapeHtml(s.generatedAt)} · schema v${s.schemaVersion} · collectors: ${s.collectors.map((c) => `${c.id}:${c.status}`).join(', ')}</div>
+      <div>Snapshot ${escapeHtml(s.generatedAt)} · schema v${s.schemaVersion} · collectors: ${s.collectors.map((c) => `${escapeHtml(c.id)}:${escapeHtml(c.status)}`).join(', ')}</div>
       <div>No health score. Counts are explicit. Facts ≠ heuristics ≠ inferences.</div>
     </div>
   </div>
@@ -498,7 +498,7 @@ function renderDrawer(s: Snapshot): string {
       <button class="btn" data-ann="false_positive">False positive</button>
       <button class="btn" data-ann="clear">Clear annotation</button>
     </div>
-    <p class="meta">Annotations do not alter scan evidence.${ann ? ` Current: ${ann.status}` : ''}</p>`
+    <p class="meta">Annotations do not alter scan evidence.${ann ? ` Current: ${escapeHtml(ann.status)}` : ''}</p>`
     }
   </div></div>`;
 }
