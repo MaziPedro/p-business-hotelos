@@ -9,6 +9,17 @@ describe('help-content', () => {
     expect(normalizeHelpRoute('/')).toBe('/');
   });
 
+  it('rejects non-string route values at runtime', () => {
+    expect(normalizeHelpRoute(['/reservations'] as any)).toBe('/');
+    expect(normalizeHelpRoute({ toString: () => '/reservations' } as any)).toBe('/');
+  });
+
+  it('normalizes query strings and trailing slashes within the input bound', () => {
+    expect(normalizeHelpRoute('/reservations/?source=frontdesk')).toBe('/reservations');
+    expect(normalizeHelpRoute('/')).toBe('/');
+    expect(normalizeHelpRoute('x'.repeat(10_000)).length).toBeLessThanOrEqual(2048);
+  });
+
   it('returns curated help for known routes', () => {
     const help = getHelpForRoute('/night-audit');
     expect(help?.title).toBe('Night Audit');
