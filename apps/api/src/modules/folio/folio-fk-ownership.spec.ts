@@ -105,4 +105,36 @@ describe('FolioService — cross-tenant FK ownership', () => {
     expect(db.update).not.toHaveBeenCalled();
   });
 
+
+  it('does not transfer a charge to a folio outside the requested property', async () => {
+    let lockLookup = 0;
+    const db: any = {
+      transaction: vi.fn(async (work: (tx: any) => Promise<unknown>) => work(db)),
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            for: vi.fn(async () => {
+              lockLookup += 1;
+              return lockLookup === 1
+                ? [{ id: 'folio-a', status: 'open' }]
+                : []; // target folio does not belong to this property
+            }),
+          })),
+        })),
+      })),
+      update: vi.fn(),
+      insert: vi.fn(),
+    };
+    const svc = await mkSvc(db);
+
+    await expect(
+      svc.transferCharge('folio-a', A, {
+        chargeId: 'charge-1',
+        targetFolioId: 'folio-z',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(db.update).not.toHaveBeenCalled();
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
 });
