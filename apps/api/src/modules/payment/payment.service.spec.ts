@@ -877,6 +877,22 @@ describe('PaymentService', () => {
         expect(db.transaction).toHaveBeenCalled();
       });
 
+      it('blocks an ambiguous retry of an existing partial refund when no idempotency key is supplied', async () => {
+        const prior = [{ amount: '-50.00', originalPaymentId: 'pay-001' }];
+        const db = buildRefundTxDb(
+          partialOriginal,
+          prior,
+          prior,
+          { id: 'unreachable' } as any,
+        );
+        const svc = await svcWith(db);
+
+        await expect(
+          svc.refundPayment('pay-001', 'prop-001', '50.00'),
+        ).rejects.toThrow(/matching refund already exists/i);
+        expect(mockGateway.refund).not.toHaveBeenCalled();
+      });
+
       it('rejects a refund that would exceed remaining refundable amount', async () => {
         const prior = [{ amount: '-50.00', originalPaymentId: 'pay-001' }];
         const db = buildRefundTxDb(
@@ -889,6 +905,87 @@ describe('PaymentService', () => {
         await expect(
           svc.refundPayment('pay-001', 'prop-001', '60.00'),
         ).rejects.toThrow(BadRequestException);
+      });
+
+      it('replays an implicit refund from the ledger using the persisted gateway idempotency key', async () => {
+        const prior = [{
+          id: 'refund-persisted-key',
+          amount: '-25.00',
+          originalPaymentId: 'pay-001',
+          idempotencyKey: 'ref_pay-001_25.00',
+        }];
+        const db = buildRefundTxDb(
+          partialOriginal,
+          prior,
+          prior,
+          { id: 'unreachable' } as any,
+        );
+        const svc = await svcWith(db);
+
+        const result = await svc.refundPayment('pay-001', 'prop-001', '25.00');
+
+        expect(result).toMatchObject({ id: 'refund-persisted-key', amount: '-25.00' });
+        expect(mockGateway.refund).not.toHaveBeenCalled();
+        expect(mockFolioService.recalculateBalance).not.toHaveBeenCalled();
+        expect(mockWebhookService.emit).not.toHaveBeenCalled();
+      });
+
+      it('keeps the implicit gateway key stable when a same-amount refund is retried after another refund', async () => {
+        const db1 = buildRefundTxDb(
+          capturedOriginal,
+          [],
+          [],
+          { id: 'refund-first-attempt', amount: '-50.00', originalPaymentId: 'pay-001' },
+        );
+        const svc1 = await svcWith(db1);
+        await svc1.refundPayment('pay-001', 'prop-001', '50.00');
+        const firstKey = mockGateway.refund.mock.calls[mockGateway.refund.mock.calls.length - 1][2].idempotencyKey;
+
+        const prior = [{ amount: '-30.00', originalPaymentId: 'pay-001' }];
+        const db2 = buildRefundTxDb(
+          partialOriginal,
+          prior,
+          prior,
+          { id: 'refund-recovered', amount: '-50.00', originalPaymentId: 'pay-001' },
+        );
+        const svc2 = await svcWith(db2);
+        await svc2.refundPayment('pay-001', 'prop-001', '50.00');
+        const retryKey = mockGateway.refund.mock.calls[mockGateway.refund.mock.calls.length - 1][2].idempotencyKey;
+
+        expect(retryKey).toBe(firstKey);
+      });
+
+      it('recovers after the gateway succeeds but the refund ledger insert fails', async () => {
+        let insertAttempts = 0;
+        const insertedRefund = { id: 'refund-recovered-after-ledger-error', amount: '-25.00', originalPaymentId: 'pay-001', gatewayTransactionId: 'gateway-refund-25' };
+        const db = {
+          transaction: vi.fn(async (fn: any) => {
+            let selectCall = 0;
+            const tx = {
+              select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn(() => {
+                selectCall++;
+                return selectCall === 1 ? { for: vi.fn().mockResolvedValue([capturedOriginal]) } : { then: (resolve: any) => resolve([]) };
+              }) })) })),
+              insert: vi.fn(() => ({ values: vi.fn(() => ({ returning: vi.fn(async () => {
+                insertAttempts++;
+                if (insertAttempts === 1) throw new Error('simulated ledger write failure');
+                return [insertedRefund];
+              }) })) })),
+            };
+            return fn(tx);
+          }),
+        };
+        const svc = await svcWith(db);
+        await expect(svc.refundPayment('pay-001', 'prop-001', '25.00')).rejects.toThrow('simulated ledger write failure');
+        expect(mockFolioService.recalculateBalance).not.toHaveBeenCalled();
+        expect(mockWebhookService.emit).not.toHaveBeenCalled();
+        const firstKey = mockGateway.refund.mock.calls[0][2].idempotencyKey;
+        const recovered = await svc.refundPayment('pay-001', 'prop-001', '25.00');
+        const retryKey = mockGateway.refund.mock.calls[1][2].idempotencyKey;
+        expect(retryKey).toBe(firstKey);
+        expect(recovered).toMatchObject({ id: insertedRefund.id, amount: insertedRefund.amount });
+        expect(mockFolioService.recalculateBalance).toHaveBeenCalledTimes(1);
+        expect(mockWebhookService.emit).toHaveBeenCalledTimes(1);
       });
 
       it('uses a unique idempotency key per partial so Stripe does not dedupe different refunds', async () => {

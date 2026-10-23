@@ -574,6 +574,46 @@ export class PaymentService {
             eq(payments.propertyId, propertyId),
           ),
         );
+      const implicitIdempotencyKey = `ref_${id}_${refundAmountInTx.toFixed(2)}`;
+      // A prior refund carrying this deterministic key is a replay, including
+      // after the gateway succeeded and the caller lost the original response.
+      // Legacy rows without a persisted key remain ambiguous and are rejected
+      // below rather than risking a second same-amount refund.
+      if (!options.idempotencyKey) {
+        const implicitReplay = (existingRefunds ?? []).find(
+          (row: typeof payments.$inferSelect) => row.idempotencyKey === implicitIdempotencyKey,
+        );
+        if (implicitReplay) {
+          if (
+            implicitReplay.originalPaymentId !== id
+            || !new Decimal(implicitReplay.amount).abs().eq(refundAmountInTx)
+          ) {
+            throw new ConflictException(
+              'Refund idempotency key was already used for different refund data',
+            );
+          }
+          return {
+            original,
+            totalAfterDec: originalAmountDec,
+            refundAmountDec: refundAmountInTx,
+            replay: implicitReplay,
+          };
+        }
+      }
+
+      // Without a persisted matching key, a same-amount child may be a legacy
+      // retry or an intentional duplicate. Require a distinct explicit key.
+      if (
+        !options.idempotencyKey
+        && (existingRefunds ?? []).some((row: typeof payments.$inferSelect) =>
+          new Decimal(row.amount).abs().eq(refundAmountInTx)
+        )
+      ) {
+        throw new ConflictException(
+          'A matching refund already exists; provide an idempotency key to distinguish a new partial refund from a retry',
+        );
+      }
+
       const alreadyRefundedDec = sumRefundChildren(existingRefunds ?? []);
       const remainingDec = originalAmountDec.minus(alreadyRefundedDec);
 
@@ -604,8 +644,12 @@ export class PaymentService {
     } = prepared;
     if (replay) return this.safePaymentResponse(replay);
 
+    // Keep the implicit key stable for retries of the same refund amount even
+    // if another refund is recorded before recovery. Same-amount intentional
+    // refunds require explicit, distinct keys (guarded above), so amount is a
+    // safe fallback identity for this payment.
     const idempotencyKey = options.idempotencyKey
-      ?? `ref_${id}_${totalAfterDec.toFixed(2)}`;
+      ?? `ref_${id}_${refundDec.toFixed(2)}`;
     const lifecycleOptions = await this.buildLifecycleGatewayOptions(original);
     const result = await this.gateway.refund(
       original.gatewayTransactionId,
@@ -643,18 +687,18 @@ export class PaymentService {
         );
       const alreadyRefundedDec = sumRefundChildren(existingRefunds ?? []);
 
-      if (options.idempotencyKey) {
+      {
         const replayRows = await tx
           .select()
           .from(payments)
           .where(and(
             eq(payments.propertyId, propertyId),
-            eq(payments.idempotencyKey, options.idempotencyKey),
+            eq(payments.idempotencyKey, idempotencyKey),
           ));
         const replayAfterGateway = (replayRows ?? []).find(
           (row: typeof payments.$inferSelect) =>
           row.propertyId === propertyId
-          && row.idempotencyKey === options.idempotencyKey,
+          && row.idempotencyKey === idempotencyKey,
         );
         if (replayAfterGateway) {
           if (
@@ -703,7 +747,7 @@ export class PaymentService {
           folioId: locked.folioId,
           propertyId,
           bookingRequestId: locked.bookingRequestId,
-          idempotencyKey: options.idempotencyKey ?? null,
+          idempotencyKey,
           method: locked.method,
           amount: ledgerRefundDec.negated().toFixed(2),
           currencyCode: locked.currencyCode,
