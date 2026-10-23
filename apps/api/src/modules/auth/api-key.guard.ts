@@ -20,7 +20,13 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(ab, bb);
 }
 
-/** sha256(rawKey) → 64-char hex digest (matches `connect_credentials.key_hash`). */
+/**
+ * SHA-256 lookup digest for connect_credentials.key_hash.
+ * This is intentionally NOT password storage: Connect keys are generated only by
+ * generateConnectKey() using 32 cryptographically random bytes (256 bits of entropy).
+ * Fast SHA-256 is appropriate for lookup of high-entropy random tokens; never reuse
+ * this helper for human passwords or low-entropy secrets.
+ */
 export function hashConnectKey(raw: string): string {
   return createHash('sha256').update(raw).digest('hex');
 }
