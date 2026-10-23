@@ -87,4 +87,22 @@ describe('FolioService — cross-tenant FK ownership', () => {
     expect(predicate).toContain('id');
   });
 
+
+  it('does not update a folio ID that is outside the requested property', async () => {
+    const db: any = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([]),
+        }),
+      }),
+      update: vi.fn(),
+    };
+    const svc = await mkSvc(db);
+
+    await expect(
+      svc.update('foreign-folio', A, { notes: 'unauthorized update' } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
 });
