@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Test, type TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { ReservationService } from './reservation.service';
 import { AvailabilityService } from './availability.service';
 import { FolioService } from '../folio/folio.service';
@@ -21,6 +21,8 @@ describe('ReservationService.moveRoom', () => {
     markVacantDirty: vi.fn().mockResolvedValue({}),
   };
   const webhook = { emit: vi.fn().mockResolvedValue(undefined) };
+  let roomConflict = false;
+  let updateWins = true;
 
   const reservation = {
     id: 'res-001',
@@ -40,21 +42,21 @@ describe('ReservationService.moveRoom', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    roomConflict = false;
+    updateWins = true;
     const tx = {
       select: vi.fn().mockImplementation(() => ({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
             for: vi.fn().mockResolvedValue([targetRoom]),
-            limit: vi.fn().mockResolvedValue([]),
+            limit: vi.fn().mockImplementation(async () => roomConflict ? [{ id: 'res-other' }] : []),
           }),
         }),
       })),
       update: vi.fn().mockReturnValue({
         set: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([
-              { ...reservation, roomId: 'room-new' },
-            ]),
+            returning: vi.fn().mockImplementation(async () => updateWins ? [{ ...reservation, roomId: 'room-new' }] : []),
           }),
         }),
       }),
@@ -107,6 +109,20 @@ describe('ReservationService.moveRoom', () => {
       expect.objectContaining({ previousRoomId: 'room-old', newRoomId: 'room-new' }),
       'prop-001',
     );
+  });
+
+  it('rejects a move when the target room overlaps another active reservation', async () => {
+    roomConflict = true;
+    await expect(svc.moveRoom('res-001', 'prop-001', { roomId: 'room-new' })).rejects.toBeInstanceOf(ConflictException);
+    expect(roomStatus.markOccupied).not.toHaveBeenCalled();
+    expect(webhook.emit).not.toHaveBeenCalled();
+  });
+
+  it('rejects a stale room move when the guarded update claims no row', async () => {
+    updateWins = false;
+    await expect(svc.moveRoom('res-001', 'prop-001', { roomId: 'room-new' })).rejects.toBeInstanceOf(ConflictException);
+    expect(roomStatus.markOccupied).not.toHaveBeenCalled();
+    expect(webhook.emit).not.toHaveBeenCalled();
   });
 
   it('blocks do-not-move without override', async () => {
