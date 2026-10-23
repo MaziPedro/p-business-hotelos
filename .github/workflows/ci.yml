@@ -197,9 +197,11 @@ jobs:
 
       - name: Verify Swagger docs are served (informational)
         run: |
-          curl -fsS http://localhost:3000/docs >/dev/null \\
-            && echo \"Swagger served at /docs ✓\" \\
-            || echo \"::warning::/docs was not reachable\"
+          if curl -fsS http://localhost:3000/docs >/dev/null; then
+            echo "Swagger served at /docs ✓"
+          else
+            echo "::warning::/docs was not reachable"
+          fi
 
       - name: Dump compose logs on failure
         if: failure()
