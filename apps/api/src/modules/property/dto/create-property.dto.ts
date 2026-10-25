@@ -9,6 +9,8 @@ import {
   IsEmail,
   MaxLength,
   Length,
+  IsUUID,
+  Matches,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -151,24 +153,22 @@ export class CreatePropertyDto {
   @IsOptional()
   @IsString()
   @MaxLength(200)
-  staffDisplayName?: string;
+  staffDisplayName?: string | null;
 
   @ApiPropertyOptional({ description: 'Media UUID for staff dashboard logo' })
   @IsOptional()
-  @IsString()
-  staffLogoMediaId?: string;
+  @IsUUID()
+  staffLogoMediaId?: string | null;
 
   @ApiPropertyOptional({ example: '#06bdb4' })
   @IsOptional()
-  @IsString()
-  @MaxLength(9)
-  staffPrimaryColor?: string;
+  @Matches(/^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/)
+  staffPrimaryColor?: string | null;
 
   @ApiPropertyOptional({ example: '#016491' })
   @IsOptional()
-  @IsString()
-  @MaxLength(9)
-  staffAccentColor?: string;
+  @Matches(/^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/)
+  staffAccentColor?: string | null;
 
   @ApiPropertyOptional({ description: 'Flexible property settings including kpiThresholds' })
   @IsOptional()
